@@ -1,0 +1,10 @@
+services:
+  - type: worker
+    name: sbz2
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./data/sbz2.db
