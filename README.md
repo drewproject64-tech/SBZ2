@@ -1,22 +1,28 @@
-# SB24GZ - Live
+# TextMate Telegram Bot
 
-A simple Telegram-native discovery bot with exactly three core functions:
+TextMate is a self-contained Telegram text utility bot. Its tools perform the advertised actions directly inside the Telegram chat.
 
-1. Live Channels
-2. Search
-3. Featured
+## Core functions
+
+1. Count Text — counts characters, words and lines.
+2. Clean Text — removes repeated spaces and blank lines.
+3. Change Case — converts text to uppercase, lowercase or title case.
+
+No external website, landing page, redirect, channel directory, gambling feature, payment flow, or third-party destination is required for the core user experience.
 
 ## Local setup
 
 1. Copy .env.example to .env.
 2. Set BOT_TOKEN.
-3. Install dependencies with pip install -r requirements.txt.
-4. Start with python -m bot.main.
+3. Install dependencies:
+   pip install -r requirements.txt
+4. Start:
+   python -m bot.main
 
-The bot stores its directory in SQLite and does not require an external website for its core functionality.
+## Render
 
-## Production
+Deploy as a Docker worker and set BOT_TOKEN as a secret environment variable.
 
-Deploy the included Dockerfile on Render as a worker and set BOT_TOKEN as a secret environment variable.
+## Ad destination alignment
 
-No gambling, casino, betting, odds, deposit, withdrawal, or gambling-promotion functionality is included in this project.
+The bot destination directly provides the text tools described in the advertising copy. Users can open the bot and immediately use Count Text, Clean Text, and Change Case without being sent to another landing page.
