@@ -1,34 +1,33 @@
+import re
+from html import escape
+
 from aiogram import F, Router
-from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
-from .db import SessionLocal, LiveItem, get_items, list_categories, search_items
-from .keyboards import back_menu, category_menu, main_menu, search_menu
+from .keyboards import back_menu, case_menu, main_menu
 
 router = Router()
 
 
-class SearchState(StatesGroup):
-    waiting_query = State()
-
-
-def item_text(item: LiveItem, index: int) -> str:
-    return (
-        f"{index}. <b>{item.name}</b>\n"
-        f"{item.description}\n"
-        f"<b>Category:</b> {item.category}"
-    )
+class ToolState(StatesGroup):
+    waiting_text = State()
 
 
 def home_text() -> str:
     return (
-        "👋 <b>Welcome to SB24GZ - Live</b>\n\n"
-        "Explore live and featured Telegram content from one simple directory.\n\n"
-        "Choose an option below:"
+        "👋 <b>Welcome to TextMate</b>\n\n"
+        "Use simple text tools directly in Telegram.\n\n"
+        "Choose a tool below:"
     )
+
+
+async def request_text(message: Message, state: FSMContext, instruction: str) -> None:
+    await state.set_state(ToolState.waiting_text)
+    await state.update_data(tool="count")
+    await message.answer(instruction, reply_markup=back_menu())
 
 
 @router.message(CommandStart())
@@ -40,11 +39,11 @@ async def start(message: Message, state: FSMContext) -> None:
 @router.message(Command("help"))
 async def help_cmd(message: Message) -> None:
     await message.answer(
-        "ℹ️ <b>About SB24GZ - Live</b>\n\n"
-        "• Live Channels — explore live listings.\n"
-        "• Search — find listings by keyword.\n"
-        "• Featured — view selected listings.\n\n"
-        "The main features work directly inside Telegram.",
+        "ℹ️ <b>TextMate</b>\n\n"
+        "• Count Text — count characters, words and lines.\n"
+        "• Clean Text — remove extra spaces and blank lines.\n"
+        "• Change Case — convert text to upper, lower or title case.\n\n"
+        "Everything runs directly inside this bot.",
         reply_markup=main_menu(),
     )
 
@@ -52,111 +51,124 @@ async def help_cmd(message: Message) -> None:
 @router.message(Command("cancel"))
 async def cancel_cmd(message: Message, state: FSMContext) -> None:
     await state.clear()
-    await message.answer("✅ Cancelled.", reply_markup=main_menu())
+    await message.answer("Cancelled.", reply_markup=main_menu())
 
 
 @router.callback_query(F.data == "main")
 async def main_callback(call: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
-    try:
-        await call.message.edit_text(home_text(), reply_markup=main_menu())
-    except TelegramBadRequest:
-        await call.message.answer(home_text(), reply_markup=main_menu())
+    await call.message.edit_text(home_text(), reply_markup=main_menu())
     await call.answer()
 
 
-@router.callback_query(F.data == "live")
-async def live_callback(call: CallbackQuery) -> None:
-    async with SessionLocal() as session:
-        categories = await list_categories(session)
-    if not categories:
-        await call.message.edit_text(
-            "🔴 <b>Live Channels</b>\n\nNo live listings are available yet.",
-            reply_markup=back_menu(),
-        )
-    else:
-        await call.message.edit_text(
-            "🔴 <b>Live Channels</b>\n\nChoose a category:",
-            reply_markup=category_menu(categories),
-        )
-    await call.answer()
-
-
-@router.callback_query(F.data == "search")
-async def search_callback(call: CallbackQuery, state: FSMContext) -> None:
-    await state.set_state(SearchState.waiting_query)
+@router.callback_query(F.data == "count")
+async def count_callback(call: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(ToolState.waiting_text)
+    await state.update_data(tool="count")
     await call.message.edit_text(
-        "🔎 <b>Search</b>\n\n"
-        "Enter a keyword such as <code>news</code>, <code>sports</code>, or <code>live</code>.\n\n"
-        "Use /cancel to stop.",
+        "🔢 <b>Count Text</b>\n\nSend the text you want to analyze.",
         reply_markup=back_menu(),
     )
     await call.answer()
 
 
-@router.message(SearchState.waiting_query)
-async def process_search(message: Message, state: FSMContext) -> None:
-    query = (message.text or "").strip()
-    if not query:
-        await message.answer("Please enter a keyword.", reply_markup=back_menu())
-        return
-    if len(query) > 80:
-        await message.answer("Please keep the search to 80 characters or fewer.", reply_markup=back_menu())
+@router.callback_query(F.data == "clean")
+async def clean_callback(call: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(ToolState.waiting_text)
+    await state.update_data(tool="clean")
+    await call.message.edit_text(
+        "🧹 <b>Clean Text</b>\n\nSend text and I will remove extra spaces and blank lines.",
+        reply_markup=back_menu(),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data == "case")
+async def case_callback(call: CallbackQuery, state: FSMContext) -> None:
+    await state.set_state(ToolState.waiting_text)
+    await state.update_data(tool="case")
+    await call.message.edit_text(
+        "🔤 <b>Change Case</b>\n\nSend the text first, then choose the case.",
+        reply_markup=case_menu(),
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("case:"))
+async def case_choice(call: CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    text = data.get("pending_text")
+    if not text:
+        await call.answer("Send your text first.", show_alert=True)
         return
 
-    async with SessionLocal() as session:
-        results = await search_items(session, query)
+    mode = call.data.split(":", 1)[1]
+    if mode == "upper":
+        result = text.upper()
+    elif mode == "lower":
+        result = text.lower()
+    else:
+        result = text.title()
 
     await state.clear()
+    await call.message.edit_text(
+        f"🔤 <b>Result</b>\n\n<code>{escape(result)}</code>",
+        reply_markup=main_menu(),
+    )
+    await call.answer()
 
-    if not results:
+
+@router.message(ToolState.waiting_text)
+async def process_text(message: Message, state: FSMContext) -> None:
+    text = (message.text or "").strip()
+    if not text:
+        await message.answer("Please send some text.", reply_markup=back_menu())
+        return
+    if len(text) > 4000:
+        await message.answer("Please keep the text under 4,000 characters.", reply_markup=back_menu())
+        return
+
+    data = await state.get_data()
+    tool = data.get("tool")
+
+    if tool == "count":
+        words = len(re.findall(r"\S+", text))
+        lines = len(text.splitlines())
+        characters = len(text)
+        characters_no_spaces = len(re.sub(r"\s", "", text))
+        await state.clear()
         await message.answer(
-            f'No results found for "<b>{query}</b>". Try another keyword.',
-            reply_markup=search_menu(),
+            "🔢 <b>Text Count</b>\n\n"
+            f"Characters: <b>{characters}</b>\n"
+            f"Characters without spaces: <b>{characters_no_spaces}</b>\n"
+            f"Words: <b>{words}</b>\n"
+            f"Lines: <b>{lines}</b>",
+            reply_markup=main_menu(),
         )
         return
 
-    body = [f"🔎 <b>Results for:</b> {query}", ""]
-    for index, item in enumerate(results, 1):
-        body.extend([item_text(item, index), ""])
-    await message.answer("\n".join(body), reply_markup=search_menu())
+    if tool == "clean":
+        cleaned_lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()]
+        cleaned = "\n".join(line for line in cleaned_lines if line)
+        await state.clear()
+        await message.answer(
+            f"🧹 <b>Cleaned Text</b>\n\n<code>{escape(cleaned)}</code>",
+            reply_markup=main_menu(),
+        )
+        return
 
+    if tool == "case":
+        await state.update_data(pending_text=text)
+        await message.answer(
+            "Choose the case for your text:",
+            reply_markup=case_menu(),
+        )
+        return
 
-@router.callback_query(F.data.startswith("cat:"))
-async def category_callback(call: CallbackQuery) -> None:
-    category = call.data.split(":", 1)[1]
-    async with SessionLocal() as session:
-        results = await get_items(session, category=category)
-
-    if not results:
-        text = f"🔴 <b>{category}</b>\n\nNo listings are available in this category yet."
-    else:
-        body = [f"🔴 <b>{category}</b>", ""]
-        for index, item in enumerate(results, 1):
-            body.extend([item_text(item, index), ""])
-        text = "\n".join(body)
-
-    await call.message.edit_text(text, reply_markup=back_menu())
-    await call.answer()
-
-
-@router.callback_query(F.data == "featured")
-async def featured_callback(call: CallbackQuery) -> None:
-    async with SessionLocal() as session:
-        results = await get_items(session, featured=True)
-
-    if not results:
-        text = "⭐ <b>Featured</b>\n\nNo featured listings are available yet."
-    else:
-        body = ["⭐ <b>Featured</b>", ""]
-        for index, item in enumerate(results, 1):
-            body.extend([item_text(item, index), ""])
-        text = "\n".join(body)
-
-    await call.message.edit_text(text, reply_markup=back_menu())
-    await call.answer()
+    await state.clear()
+    await message.answer("Please choose a tool from the main menu.", reply_markup=main_menu())
 
 
 @router.callback_query()
 async def unknown_callback(call: CallbackQuery) -> None:
-    await call.answer("Please return to the main menu.", show_alert=True)
+    await call.answer("Please choose an option from the menu.", show_alert=True)
