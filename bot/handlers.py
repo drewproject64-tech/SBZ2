@@ -18,16 +18,10 @@ class ToolState(StatesGroup):
 
 def home_text() -> str:
     return (
-        "👋 <b>Welcome to TextMate</b>\n\n"
-        "Use simple text tools directly in Telegram.\n\n"
+        "👋 <b>Welcome to SB24GZ Text Bot</b>\n\n"
+        "Simple text tools that work directly inside Telegram.\n\n"
         "Choose a tool below:"
     )
-
-
-async def request_text(message: Message, state: FSMContext, instruction: str) -> None:
-    await state.set_state(ToolState.waiting_text)
-    await state.update_data(tool="count")
-    await message.answer(instruction, reply_markup=back_menu())
 
 
 @router.message(CommandStart())
@@ -39,7 +33,7 @@ async def start(message: Message, state: FSMContext) -> None:
 @router.message(Command("help"))
 async def help_cmd(message: Message) -> None:
     await message.answer(
-        "ℹ️ <b>TextMate</b>\n\n"
+        "ℹ️ <b>SB24GZ Text Bot</b>\n\n"
         "• Count Text — count characters, words and lines.\n"
         "• Clean Text — remove extra spaces and blank lines.\n"
         "• Change Case — convert text to upper, lower or title case.\n\n"
@@ -89,7 +83,7 @@ async def case_callback(call: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(tool="case")
     await call.message.edit_text(
         "🔤 <b>Change Case</b>\n\nSend the text first, then choose the case.",
-        reply_markup=case_menu(),
+        reply_markup=back_menu(),
     )
     await call.answer()
 
